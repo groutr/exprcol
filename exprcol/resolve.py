@@ -1,5 +1,3 @@
-from collections import defaultdict, deque
-
 from dask.optimization import cull
 from dask.core import get as dcget
 
@@ -8,11 +6,8 @@ from . import REGISTRY, requires
 __all__ = ('unresolved', 'compute')
 
 def _generate_dask_graph(data, keys):
-    """Generate a dask graph from a subset of REGISTRY.
-
-    Arguments:
-        data {[type]} -- [description]
-        keys {[type]} -- [description]
+    """
+    Generate a dask graph from a subset of REGISTRY.
     """
     tasks = {k: data[k] for k in unresolved(keys)}
     tasks.update(REGISTRY)
@@ -20,6 +15,16 @@ def _generate_dask_graph(data, keys):
 
 
 def compute(data, cols=None):
+    """
+    Compute requested expressions from data
+
+    Arguments:
+        data: Data to compute on. Assumed to a be a key/value data structure
+        cols: Column expressions to compute.
+
+    Returns:
+        (dict): Column expression results.
+    """
     if cols is None:
         cols = []
     else:

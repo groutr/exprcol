@@ -1,78 +1,32 @@
 from collections import defaultdict, deque
 
-import numpy as np
+from dask.optimization import cull
+from dask.core import get as dcget
 
 from . import REGISTRY, requires
 
 __all__ = ('unresolved', 'compute')
 
-def slice_graph(keys):
-    sliced = set()
-    children = deque(keys)
-    while children:
-        node = children.popleft()
-        sliced.add(node)
-        reqs = REGISTRY.get(node, None)
-        if reqs:
-            children.extend(requires(reqs))
-    return sliced
+def _generate_dask_graph(data, keys):
+    """Generate a dask graph from a subset of REGISTRY.
+
+    Arguments:
+        data {[type]} -- [description]
+        keys {[type]} -- [description]
+    """
+    tasks = {k: data[k] for k in unresolved(keys)}
+    tasks.update(REGISTRY)
+    return cull(tasks, keys)[0]
 
 
-def toposort(G):
-    # From NetworkX
-
-    seen = set()
-    order = []
-    explored = set()
-
-    for n in G:
-        if n in explored:
-            continue
-        fringe = [n]
-        while fringe:
-            w = fringe[-1]
-            if w in explored:
-                fringe.pop()
-                continue
-            seen.add(w)
-
-            new_nodes = []
-            for v in G[w]:
-                if v not in explored:
-                    if v in seen:
-                        raise ValueError("Graph has a cycle")
-                    new_nodes.append(v)
-
-            if new_nodes:
-                fringe.extend(new_nodes)
-            else:
-                explored.add(w)
-                order.append(w)
-                fringe.pop()
-    return tuple(reversed(order))
-
-
-def compute(data, cols=None, only_cols=True):
+def compute(data, cols=None):
     if cols is None:
-        cols = set()
+        cols = []
     else:
-        cols = set(cols)
+        cols = list(set(cols))
 
-    data = {c: np.asanyarray(data[c]) for c in unresolved(cols)}
-    cached = {}
-    for node in toposort(cols):
-        if node in data:
-            cached[node] = data[node]
-            continue
-
-        func, args = REGISTRY[node]
-        data[node] = func(*(cached[c] for c in args))
-
-    if only_cols:
-        rv_cols = cached.keys() & cols
-    else:
-        rv_cols = cached.keys() - data.keys()
-    return {k: cached[k] for k in rv_cols}
+    dsk = _generate_dask_graph(data, cols)
+    return dict(zip(cols, dcget(dsk, cols)))
 
 
 def unresolved(cols):

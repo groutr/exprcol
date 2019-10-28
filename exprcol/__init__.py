@@ -6,17 +6,13 @@ from functools import wraps
 
 REGISTRY = {}
 
-requires = itemgetter(1)
+requires = itemgetter(slice(1, None))
 
 def register(name, requires):
     def decorator(func):
-        if True or _check_function(func, requires):
-            REGISTRY[name] = (func, tuple(requires))
-
-        @wraps(func)
-        def _(*args, **kwargs):
-            return func(*args, **kwargs)
-        return _
+        if _check_function(func, requires):
+            REGISTRY[name] = (func, *requires)
+        return func
     return decorator
 
 

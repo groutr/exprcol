@@ -9,13 +9,14 @@ def _generate_dask_graph(data, keys):
     """
     Generate a dask graph from a subset of REGISTRY.
     """
-    tasks = {k: data[k] for k in unresolved(keys)}
-    tasks.update(REGISTRY)
-    return cull(tasks, keys)[0]
+    tasks = cull(REGISTRY, keys)[0]
+    for k in unresolved(tasks, keys):
+        tasks[k] = data[k]
+    return tasks
 
 
 def compute(data, cols=None):
-    """
+    """stats from counter data
     Compute requested expressions from data
 
     Arguments:
@@ -34,14 +35,14 @@ def compute(data, cols=None):
     return dict(zip(cols, dcget(dsk, cols)))
 
 
-def unresolved(cols):
-    cols = set(cols)
-    while True:
-        overlap = REGISTRY.keys() & cols
-        if not overlap:
-            break
-
-        for c in overlap:
-            cols.update(requires(REGISTRY[c]))
-            cols.remove(c)
-    return cols
+def unresolved(subgraph, cols):
+    result = set()
+    cols = list(cols)
+    while cols:
+        c = cols.pop()
+        if c in subgraph:
+            cols.extend(requires(subgraph[c]))
+        else:
+            if isinstance(c, str):
+                result.add(c)
+    return result
